@@ -1,0 +1,5 @@
+# Рантайм-сервис: без torch, stable-baselines3 и gymnasium (тариф 512 MB RAM)
+fastapi==0.115.0
+uvicorn==0.30.6
+pydantic==2.9.2
+numpy==2.1.3

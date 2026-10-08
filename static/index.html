@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nazdratenko · Агент CartPole</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='11' fill='%232f80c4'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="logo-icon" viewBox="0 0 32 32" aria-hidden="true">
+        <line x1="6" y1="22" x2="26" y2="22" class="l-base"/>
+        <rect x="9" y="18" width="14" height="6" rx="2" class="l-cart"/>
+        <line x1="16" y1="18" x2="16" y2="7" class="l-pole"/>
+        <circle cx="10" cy="25" r="2" class="l-wheel"/>
+        <circle cx="22" cy="25" r="2" class="l-wheel"/>
+      </svg>
+      <span class="wordmark">Nazdratenko</span>
+    </div>
+    <div class="status">
+      <span id="statusDot" class="dot dot-idle"></span>
+      <span id="statusText">Проверка…</span>
+      <span class="version" id="modelVersion">ppo-cartpole-v1.0</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero fade-in">
+      <h1>Агент CartPole как сервис</h1>
+      <p class="sub">Обучен с подкреплением в симуляторе, отвечает по POST /act</p>
+      <a class="scroll-cta" href="#train" aria-label="Перейти к обучению">↓</a>
+    </section>
+
+    <section class="card fade-in" id="train">
+      <div class="card-head">
+        <h2>1. Обучение</h2>
+        <span class="muted">PPO, среда CartPole-v1</span>
+      </div>
+      <p class="muted">На бесплатном сервере может занять несколько минут.</p>
+      <button id="btnTrain" class="btn primary">Запустить обучение-кандидат</button>
+      <p id="trainDisabledNote" class="note hidden">Обучение на этом сервере отключено, модель обучена заранее в симуляторе.</p>
+
+      <div class="progress-wrap">
+        <div class="progress-bar"><div id="trainBar" class="progress-fill"></div></div>
+        <div class="progress-meta">
+          <span id="trainPercent">0%</span>
+          <span id="trainEta">ETA —</span>
+        </div>
+      </div>
+
+      <ol class="steps" id="trainSteps">
+        <li data-stage="init"><span class="step-mark"></span>Инициализация</li>
+        <li data-stage="train"><span class="step-mark"></span>Обучение PPO</li>
+        <li data-stage="evaluate"><span class="step-mark"></span>Оценка</li>
+        <li data-stage="done"><span class="step-mark"></span>Готово</li>
+      </ol>
+
+      <p class="live">Средняя награда: <strong id="liveReward">—</strong></p>
+    </section>
+
+    <section class="card fade-in" id="evaluate">
+      <div class="card-head">
+        <h2>2. Проверка качества</h2>
+        <span class="muted">20 эпизодов, seed 116, greedy</span>
+      </div>
+      <button id="btnEval" class="btn primary">Запустить оценку</button>
+
+      <div class="segments" id="evalSegments" aria-label="Прогресс по эпизодам"></div>
+
+      <div class="compare hidden" id="compare">
+        <div class="cmp-card">
+          <div class="cmp-label">PPO</div>
+          <div class="cmp-value" id="ppoMean">—</div>
+          <div class="bar"><div class="bar-fill" id="ppoBar"></div></div>
+        </div>
+        <div class="cmp-card">
+          <div class="cmp-label">Случайный агент</div>
+          <div class="cmp-value" id="rndMean">—</div>
+          <div class="bar"><div class="bar-fill bar-muted" id="rndBar"></div></div>
+        </div>
+      </div>
+      <p class="ratio hidden" id="ratio"></p>
+    </section>
+
+    <section class="card fade-in" id="act">
+      <div class="card-head">
+        <h2>3. Попробовать /act</h2>
+      </div>
+      <div class="inputs">
+        <label>Позиция <input id="s0" type="number" step="any" value="0.01"></label>
+        <label>Скорость <input id="s1" type="number" step="any" value="0.2"></label>
+        <label>Угол <input id="s2" type="number" step="any" value="-0.03"></label>
+        <label>Угловая скорость <input id="s3" type="number" step="any" value="-0.4"></label>
+      </div>
+      <button id="btnAct" class="btn primary">Получить действие</button>
+      <div class="result" id="actResult">
+        <div class="result-big" id="actBig">Здесь появится действие</div>
+        <div class="muted" id="actVersion"></div>
+      </div>
+      <details class="json-box">
+        <summary>Запрос и ответ</summary>
+        <pre id="actJson" class="mono">—</pre>
+      </details>
+    </section>
+
+    <section class="card fade-in" id="log">
+      <div class="card-head">
+        <h2>4. Журнал взаимодействий</h2>
+        <span class="muted">обновляется каждые 3 секунды</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Время (UTC)</th><th>Состояние</th><th>Действие</th><th>Награда</th></tr>
+          </thead>
+          <tbody id="logBody">
+            <tr class="skeleton-row"><td colspan="4"></td></tr>
+            <tr class="skeleton-row"><td colspan="4"></td></tr>
+            <tr class="skeleton-row"><td colspan="4"></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    Обучение выполняется только в симуляторе Gymnasium CartPole-v1. Реальные пользователи и объекты не используются.
+  </footer>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
