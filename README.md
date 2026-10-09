@@ -58,6 +58,7 @@ SII-LR07-Nazdratenko/
     policy_v1.0.npz
   results/
     evaluation.json
+    training_history.json
   logs/
     actions.jsonl
   static/
@@ -155,6 +156,7 @@ curl -s -X POST http://localhost:8000/act \
 | GET | `/health` | — | `status`, `model_version`, `model_loaded` | — |
 | POST | `/act` | JSON `{"state": [4 числа], "reward": число или null}` | `{"action": 0\|1, "model_version": "ppo-cartpole-v1.0"}` | 422 (неверная длина или NaN/inf), 503 (нет весов) |
 | GET | `/api/logs?limit=10` | — | `items` — последние записи журнала | 422 (limit вне 1..100) |
+| GET | `/api/training-history` | — | запись реального обучения (шаги и средняя награда) для сайта | 404 (записи нет) |
 | GET | `/api/progress` | — | состояние длительной операции | — |
 | POST | `/api/evaluate` | — | 202, запуск оценки в фоне | 409 (задача уже идёт) |
 | GET | `/api/evaluate/result` | — | содержимое `results/evaluation.json` | 404 (результата нет) |
@@ -219,6 +221,7 @@ CartPole — задача управления с отложенной обра�
 <!-- ASSUMPTION:START -->
 - Веса модели и результаты создаются запуском `run_all.bat` (или `run_all.sh`).
 <!-- ASSUMPTION:END -->
+- **Блок «Обучение» на сайте** при `TRAIN_ENABLED=false` проигрывает с анимацией запись реального обучения из `results/training_history.json`, которую создаёт `scripts/train.py`. Подпись на странице прямо говорит, что это запись, а не обучение на сервере.
 - **Обучение на Render отключено** (`TRAIN_ENABLED=false`): torch не помещается в 512 MB. Кнопка на сайте неактивна с пояснением.
 - **Версия Python.** Проект проверяется на Python 3.10–3.13. Для Render в `render.yaml` указано `PYTHON_VERSION=3.11.9`.
 - **Значения по умолчанию на сайте:** обучение-кандидат — 30000 шагов, оценка — 20 эпизодов, seed 116.

@@ -21,6 +21,7 @@ from app import action_logger, policy, progress
 from app.evaluation_service import evaluate_agents, load_result, save_result
 from config import (
     MODEL_VERSION,
+    TRAINING_HISTORY_PATH,
     STATIC_DIR,
     TRAIN_DEFAULT_TIMESTEPS,
     TRAIN_ENABLED,
@@ -141,6 +142,16 @@ def _try_load() -> bool:
 @app.get("/api/logs")
 def api_logs(limit: int = Query(default=10, ge=1, le=100)):
     return {"items": action_logger.read_last(limit)}
+
+
+@app.get("/api/training-history")
+def api_training_history():
+    """Запись реального обучения (из scripts/train.py) для воспроизведения на сайте."""
+    if not os.path.exists(TRAINING_HISTORY_PATH):
+        return JSONResponse(status_code=404, content={"detail": "Записи обучения пока нет. Выполните scripts/train.py."})
+    import json
+    with open(TRAINING_HISTORY_PATH, encoding="utf-8") as fh:
+        return json.load(fh)
 
 
 @app.get("/api/progress")

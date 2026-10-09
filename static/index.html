@@ -38,14 +38,15 @@
         <h2>1. Обучение</h2>
         <span class="muted">PPO, среда CartPole-v1</span>
       </div>
-      <p class="muted">На бесплатном сервере может занять несколько минут.</p>
+      <p class="muted" id="trainHint">На бесплатном сервере может занять несколько минут.</p>
       <button id="btnTrain" class="btn primary">Запустить обучение-кандидат</button>
-      <p id="trainDisabledNote" class="note hidden">Обучение на этом сервере отключено, модель обучена заранее в симуляторе.</p>
+      <p id="trainDisabledNote" class="note hidden"></p>
 
       <div class="progress-wrap">
         <div class="progress-bar"><div id="trainBar" class="progress-fill"></div></div>
         <div class="progress-meta">
           <span id="trainPercent">0%</span>
+          <span id="trainStepsText">Шаги: 0</span>
           <span id="trainEta">ETA —</span>
         </div>
       </div>
@@ -57,7 +58,27 @@
         <li data-stage="done"><span class="step-mark"></span>Готово</li>
       </ol>
 
-      <p class="live">Средняя награда: <strong id="liveReward">—</strong></p>
+      <div class="chart-box" id="chartBox">
+        <div class="chart-title">
+          <span>Средняя награда за эпизод</span>
+          <strong id="liveReward">—</strong>
+        </div>
+        <svg id="rewardChart" viewBox="0 0 600 170" role="img" aria-label="График средней награды в ходе обучения">
+          <defs>
+            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#2f80c4" stop-opacity="0.28"/>
+              <stop offset="100%" stop-color="#2f80c4" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <line x1="0" y1="10" x2="600" y2="10" class="grid"/>
+          <line x1="0" y1="80" x2="600" y2="80" class="grid"/>
+          <line x1="0" y1="150" x2="600" y2="150" class="grid"/>
+          <path id="chartArea" d="" fill="url(#areaGrad)"/>
+          <polyline id="chartLine" points="" class="chart-line"/>
+          <circle id="chartDot" r="4" cx="0" cy="150" class="chart-dot"/>
+        </svg>
+        <div class="chart-axis"><span>0 шагов</span><span id="chartMax">награда до 500</span></div>
+      </div>
     </section>
 
     <section class="card fade-in" id="evaluate">

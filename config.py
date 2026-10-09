@@ -22,6 +22,7 @@ SB3_MODEL_PATH = os.path.join(MODELS_DIR, "ppo_cartpole_v1.0.zip")
 NUMPY_POLICY_PATH = os.path.join(MODELS_DIR, "policy_v1.0.npz")
 CANDIDATE_DIR = os.path.join(MODELS_DIR, "candidate")
 EVALUATION_JSON_PATH = os.path.join(RESULTS_DIR, "evaluation.json")
+TRAINING_HISTORY_PATH = os.path.join(RESULTS_DIR, "training_history.json")
 ACTIONS_LOG_PATH = os.path.join(LOGS_DIR, "actions.jsonl")
 
 TRAIN_ENABLED = os.environ.get("TRAIN_ENABLED", "false").lower() == "true"

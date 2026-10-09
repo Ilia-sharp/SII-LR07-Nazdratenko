@@ -6,7 +6,8 @@
 
   const $ = (id) => document.getElementById(id);
   const STAGES = ["init", "train", "evaluate", "done"];
-  const state = { busy: false, pollTimer: null, logTimer: null, wakeTimer: null, startedAt: null };
+  const state = { busy: false, pollTimer: null, logTimer: null, trainEnabled: false, history: null, replayRaf: null };
+  const REPLAY_MS = 16000; // длительность воспроизведения записи обучения
 
   // ---------- утилиты ----------
 
@@ -46,7 +47,7 @@
     state.busy = on;
     ["btnTrain", "btnEval", "btnAct"].forEach((id) => {
       const b = $(id);
-      if (b) b.disabled = on || (id === "btnTrain" && $("trainDisabledNote").classList.contains("hidden") === false);
+      if (b) b.disabled = on || (id === "btnTrain" && !state.trainEnabled && !state.history);
     });
   }
 
@@ -84,12 +85,25 @@
 
   async function loadStatusAndTrainFlag() {
     try {
-      const s = await api("/api/status");
-      if (!s.train_enabled) {
-        $("btnTrain").disabled = true;
-        $("trainDisabledNote").classList.remove("hidden");
-      }
+      const st = await api("/api/status");
+      state.trainEnabled = !!st.train_enabled;
     } catch (_) { /* не критично */ }
+
+    if (state.trainEnabled) return;
+    // Живое обучение на сервере отключено: показываем запись реального обучения
+    const note = $("trainDisabledNote");
+    note.classList.remove("hidden");
+    try {
+      state.history = await api("/api/training-history");
+      const n = state.history.timesteps.toLocaleString("ru-RU");
+      $("btnTrain").textContent = "Показать ход обучения";
+      $("trainHint").textContent = "Воспроизведение записи реального обучения PPO в симуляторе (seed " + state.history.seed + ", " + n + " шагов).";
+      note.textContent = "Бесплатный сервер не тянет обучение, поэтому здесь проигрывается запись настоящего обучения, сделанного заранее в симуляторе.";
+      $("btnTrain").disabled = false;
+    } catch (_) {
+      note.textContent = "Обучение на этом сервере отключено, а записи обучения пока нет.";
+      $("btnTrain").disabled = true;
+    }
   }
 
   // ---------- прогресс ----------
@@ -100,6 +114,7 @@
     $("trainPercent").textContent = percent + "%";
     $("trainEta").textContent = "ETA " + formatSeconds(p.eta_seconds);
     $("liveReward").textContent = p.mean_reward != null ? p.mean_reward.toFixed(1) : "—";
+    if (p.job_type === "train" && p.total) $("trainStepsText").textContent = "Шаги: " + (p.done || 0).toLocaleString("ru-RU") + " / " + p.total.toLocaleString("ru-RU");
 
     const idx = { init: 0, train: 1, evaluate: 2, done: 3, idle: -1, error: -1 }[p.stage];
     document.querySelectorAll("#trainSteps li").forEach((li, i) => {
@@ -152,10 +167,93 @@
     }, 1000);
   }
 
+  // ---------- воспроизведение записи обучения ----------
+
+  const CHART_W = 600, CHART_H = 170, CHART_TOP = 10, CHART_BOTTOM = 150, MAX_R = 500;
+
+  function chartXY(step, total, reward) {
+    const x = (step / total) * CHART_W;
+    const y = CHART_BOTTOM - (Math.min(reward, MAX_R) / MAX_R) * (CHART_BOTTOM - CHART_TOP);
+    return [x, y];
+  }
+
+  function drawChart(points, total) {
+    if (!points.length) return;
+    const xy = points.map((p) => chartXY(p.step, total, p.reward));
+    $("chartLine").setAttribute("points", xy.map((q) => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" "));
+    const last = xy[xy.length - 1];
+    $("chartArea").setAttribute("d",
+      "M" + xy[0][0].toFixed(1) + "," + CHART_BOTTOM + " L" +
+      xy.map((q) => q[0].toFixed(1) + "," + q[1].toFixed(1)).join(" L") +
+      " L" + last[0].toFixed(1) + "," + CHART_BOTTOM + " Z");
+    $("chartDot").setAttribute("cx", last[0].toFixed(1));
+    $("chartDot").setAttribute("cy", last[1].toFixed(1));
+  }
+
+  function setStageClasses(stage) {
+    const idx = { init: 0, train: 1, evaluate: 2, done: 3 }[stage];
+    document.querySelectorAll("#trainSteps li").forEach((li, i) => {
+      li.classList.remove("active", "done");
+      if (i < idx) li.classList.add("done");
+      if (i === idx) li.classList.add(stage === "done" ? "done" : "active");
+    });
+  }
+
+  function startReplay() {
+    const h = state.history;
+    if (!h || !h.points || !h.points.length) { toast("Записи обучения нет"); return; }
+    setBusy(true);
+    cancelAnimationFrame(state.replayRaf);
+
+    // награда может быть null в начале: подставляем предыдущее значение (или 0)
+    let carry = 0;
+    const pts = h.points.map((p) => {
+      if (p.mean_reward != null) carry = p.mean_reward;
+      return { step: p.step, reward: carry };
+    });
+    const total = h.timesteps;
+    $("chartLine").setAttribute("points", "");
+    $("chartArea").setAttribute("d", "");
+    $("liveReward").textContent = "—";
+
+    const t0 = performance.now();
+    function frame(now) {
+      const t = Math.min(1, (now - t0) / REPLAY_MS);
+      // фазы: инициализация 0–4%, обучение 4–90%, оценка 90–97%, готово
+      let stage = "init", trainFrac = 0;
+      if (t >= 0.97) { stage = "done"; trainFrac = 1; }
+      else if (t >= 0.90) { stage = "evaluate"; trainFrac = 1; }
+      else if (t >= 0.04) { stage = "train"; trainFrac = (t - 0.04) / 0.86; }
+
+      const curStep = Math.round(trainFrac * total);
+      const shown = pts.filter((p) => p.step <= curStep);
+      drawChart(shown, total);
+      const lastR = shown.length ? shown[shown.length - 1].reward : 0;
+
+      $("trainBar").style.width = (t * 100).toFixed(1) + "%";
+      $("trainPercent").textContent = Math.round(t * 100) + "%";
+      $("trainStepsText").textContent = "Шаги: " + curStep.toLocaleString("ru-RU") + " / " + total.toLocaleString("ru-RU");
+      $("trainEta").textContent = "Осталось ~" + Math.max(0, Math.ceil((1 - t) * REPLAY_MS / 1000)) + " с";
+      $("liveReward").textContent = shown.length ? lastR.toFixed(1) : "—";
+      setStageClasses(stage);
+
+      if (t < 1) {
+        state.replayRaf = requestAnimationFrame(frame);
+      } else {
+        if (h.final_eval_mean != null) $("liveReward").textContent = h.final_eval_mean.toFixed(1);
+        $("trainEta").textContent = "Готово";
+        setBusy(false);
+        toast("Обучение завершено: награда " + (h.final_eval_mean != null ? h.final_eval_mean.toFixed(0) : lastR.toFixed(0)) + " из 500");
+      }
+    }
+    state.replayRaf = requestAnimationFrame(frame);
+  }
+
   // ---------- обучение ----------
 
   async function startTrain() {
     if (state.busy) return;
+    if (!state.trainEnabled) { startReplay(); return; }
     setBusy(true);
     $("trainBar").style.width = "0%";
     try {

@@ -7,9 +7,11 @@
 """
 
 import argparse
+import json
 import os
 import random
 import sys
+import time
 
 # Чтобы импорт config и app работал при запуске из любого каталога
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -26,6 +28,7 @@ from config import (  # noqa: E402
     NUMPY_POLICY_PATH,
     SB3_MODEL_PATH,
     SEED,
+    TRAINING_HISTORY_PATH,
 )
 
 
@@ -58,6 +61,9 @@ def main() -> int:
     zip_path = os.path.join(args.out, os.path.basename(SB3_MODEL_PATH))
     npz_path = os.path.join(args.out, os.path.basename(NUMPY_POLICY_PATH))
 
+    history = []  # точки (шаг, средняя награда): по ним сайт воспроизводит ход обучения
+    t_start = time.monotonic()
+
     class PrintProgressCallback(BaseCallback):
         def __init__(self, total: int):
             super().__init__()
@@ -70,6 +76,8 @@ def main() -> int:
                 percent = 100.0 * min(self.num_timesteps, self.total) / self.total
                 progress.update(done=min(self.num_timesteps, self.total), stage="train",
                                 mean_reward=mean_r)
+                history.append({"step": int(min(self.num_timesteps, self.total)),
+                                "mean_reward": None if mean_r is None else round(float(mean_r), 2)})
                 mr = f"{mean_r:.1f}" if mean_r is not None else "—"
                 print(f"[train] шаг {self.num_timesteps}/{self.total} ({percent:.0f}%), "
                       f"средняя награда: {mr}", flush=True)
@@ -82,6 +90,7 @@ def main() -> int:
     print(f"Обучение PPO: {args.timesteps} шагов, seed={SEED}, среда {ENV_ID}")
     model.learn(total_timesteps=args.timesteps, callback=PrintProgressCallback(args.timesteps))
 
+    duration = time.monotonic() - t_start
     model.save(zip_path)
     print(f"Модель SB3 сохранена: {zip_path}")
 
@@ -103,6 +112,13 @@ def main() -> int:
     eval_env.close()
     mean_reward = float(np.mean(rewards))
     print(f"Средняя награда greedy на 20 эпизодах: {mean_reward:.1f} (ожидание: ≥ {EXPECTED_MIN_MEAN_REWARD})")
+
+    os.makedirs(os.path.dirname(TRAINING_HISTORY_PATH), exist_ok=True)
+    with open(TRAINING_HISTORY_PATH, "w", encoding="utf-8") as fh:
+        json.dump({"seed": SEED, "env": ENV_ID, "algorithm": "PPO", "timesteps": args.timesteps,
+                   "duration_seconds": round(duration, 1), "final_eval_mean": round(mean_reward, 2),
+                   "points": history}, fh, ensure_ascii=False)
+    print(f"История обучения сохранена: {TRAINING_HISTORY_PATH}")
     if mean_reward < EXPECTED_MIN_MEAN_REWARD:
         print("ПРЕДУПРЕЖДЕНИЕ: качество ниже ожидаемого. Попробуйте увеличить --timesteps "
               "(например, 200000).")
