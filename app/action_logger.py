@@ -6,7 +6,8 @@ import sys
 import threading
 from datetime import datetime, timezone
 
-from config import ACTIONS_LOG_PATH, MODEL_VERSION
+import config
+from config import MODEL_VERSION
 
 _lock = threading.Lock()
 
@@ -27,8 +28,9 @@ def build_record(state, action: int, reward, model_version: str = MODEL_VERSION)
     }
 
 
-def append(record: dict, path: str = ACTIONS_LOG_PATH) -> bool:
+def append(record: dict, path: str | None = None) -> bool:
     """Дописывает одну строку JSON. Ошибку не пробрасывает: при сбое пишет в stderr."""
+    path = path or config.ACTIONS_LOG_PATH  # читаем при вызове, чтобы путь можно было подменить
     try:
         with _lock:
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -40,8 +42,9 @@ def append(record: dict, path: str = ACTIONS_LOG_PATH) -> bool:
         return False
 
 
-def read_last(limit: int = 10, path: str = ACTIONS_LOG_PATH) -> list[dict]:
+def read_last(limit: int = 10, path: str | None = None) -> list[dict]:
     """Последние записи журнала (от новых к старым). Битые строки пропускаются."""
+    path = path or config.ACTIONS_LOG_PATH
     limit = max(1, min(int(limit), 100))
     if not os.path.exists(path):
         return []

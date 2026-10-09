@@ -28,3 +28,19 @@ def test_numpy_policy_matches_sb3():
         if int(model.predict(s, deterministic=True)[0]) != act(s, weights):
             mismatches += 1
     assert mismatches == 0, f"Не совпало действий: {mismatches} из 1000"
+
+
+@pytest.mark.skipif(not os.path.exists(SB3_MODEL_PATH), reason="Нет models/ppo_cartpole_v1.0.zip")
+def test_api_evaluation_matches_sb3_evaluation():
+    """Оценка через numpy-политику (как на сайте) даёт те же награды PPO, что и SB3."""
+    from app.evaluation_service import evaluate_agents
+    from app.policy import act, load_weights, reset_cache
+
+    reset_cache()
+    weights = load_weights()
+    model = sb3.PPO.load(SB3_MODEL_PATH, device="cpu")
+
+    via_sb3 = evaluate_agents(lambda obs: int(model.predict(obs, deterministic=True)[0]))
+    via_numpy = evaluate_agents(lambda obs: act(obs, weights))
+    assert via_sb3["ppo"]["rewards"] == via_numpy["ppo"]["rewards"]
+    assert via_sb3["random"]["rewards"] == via_numpy["random"]["rewards"]

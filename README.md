@@ -35,6 +35,9 @@ SII-LR07-Nazdratenko/
   requirements.txt
   requirements-train.txt
   .gitignore
+  .gitattributes
+  run_all.bat
+  run_all.sh
   config.py
   app/
     __init__.py
@@ -48,6 +51,8 @@ SII-LR07-Nazdratenko/
   scripts/
     train.py
     evaluate.py
+    fill_readme.py
+    demo_requests.py
   models/
     ppo_cartpole_v1.0.zip
     policy_v1.0.npz
@@ -66,7 +71,16 @@ SII-LR07-Nazdratenko/
     test_logging.py
 ```
 
-## 5. Установка и запуск
+## 5. Быстрый запуск (всё одной командой)
+
+Windows: двойной клик по `run_all.bat`. Linux/macOS: `./run_all.sh`.
+Скрипт создаёт окружение, ставит зависимости, обучает PPO (seed 116), оценивает агента против случайного,
+заполняет таблицу результатов в этом README, запускает тесты, создаёт демо-журнал, делает коммит, тег `v1.0`
+и отправляет их на GitHub (и на GitVerse, если ввести адрес).
+
+Ручной запуск по шагам описан ниже.
+
+## 5.0. Установка и запуск по шагам
 
 ### 5.1. Обучение и оценка (локально)
 
@@ -168,14 +182,9 @@ curl -s -X POST http://localhost:8000/act \
 
 ## 9. Результаты: PPO против случайного агента
 
-Таблица заполняется из `results/evaluation.json` после запуска `python scripts/evaluate.py`.
-
-| Агент | Среднее | std | min | max | Эпизодов |
-|---|---|---|---|---|---|
-| PPO (greedy) | *заполняется после запуска evaluate.py* | — | — | — | 20 |
-| Случайный агент | *заполняется после запуска evaluate.py* | — | — | — | 20 |
-
-**Вывод:** *заполняется после запуска evaluate.py.* Ожидаемо PPO в greedy-режиме близок к максимуму 500 шагов, случайный агент — около 20 шагов. Фактические значения фиксируются в `results/evaluation.json`.
+<!-- RESULTS:START -->
+После запуска `python scripts/evaluate.py` и `python scripts/fill_readme.py` здесь появится таблица.
+<!-- RESULTS:END -->
 
 ## 10. Воспроизводимость
 
@@ -207,7 +216,9 @@ CartPole — задача управления с отложенной обра�
 
 ## 14. Допущения
 
-- **Веса модели и `results/evaluation.json` не включены в код, созданный в этой работе.** Они появляются при запуске `scripts/train.py` и `scripts/evaluate.py` на вашей машине, где устанавливается torch. Причина: в среде разработки torch (около 900 МБ) не загрузился. Перед сдачей выполните обучение и оценку локально и закоммитьте получившиеся файлы в `models/` и `results/`.
+<!-- ASSUMPTION:START -->
+- Веса модели и результаты создаются запуском `run_all.bat` (или `run_all.sh`).
+<!-- ASSUMPTION:END -->
 - **Обучение на Render отключено** (`TRAIN_ENABLED=false`): torch не помещается в 512 MB. Кнопка на сайте неактивна с пояснением.
 - **Версия Python.** Проект проверяется на Python 3.10–3.13. Для Render в `render.yaml` указано `PYTHON_VERSION=3.11.9`.
 - **Значения по умолчанию на сайте:** обучение-кандидат — 30000 шагов, оценка — 20 эпизодов, seed 116.
